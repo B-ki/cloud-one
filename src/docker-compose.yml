@@ -1,0 +1,58 @@
+version: '3.9'
+name: inception
+
+services:
+  nginx:
+    build: services/nginx/
+    container_name: nginx
+    env_file: .env
+    restart: unless-stopped
+    ports: 
+      - 443:443
+    networks:
+      - network
+    volumes:
+      - wordpress-data:/var/www/wordpress
+
+  mariadb:
+    build: services/mariadb
+    container_name: mariadb
+    env_file: .env
+    restart: unless-stopped
+    expose:
+      - 3306
+    networks:
+      - network
+    volumes:
+      - mariadb-data:/var/lib/mysql
+
+  wordpress:
+    build: services/wordpress/
+    container_name: wordpress
+    env_file: .env
+    restart: unless-stopped
+    expose:
+      - 9000
+    networks:
+      - network
+    volumes:
+      - wordpress-data:/var/www/wordpress
+
+networks:
+  network:
+    driver: bridge
+
+volumes:
+  mariadb-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /home/rmorel/data/mysql
+      o: bind
+
+  wordpress-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: /home/rmorel/data/wp
+      o: bind
