@@ -38,6 +38,18 @@ services:
     volumes:
       - wordpress-data:/var/www/wordpress
 
+  phpmyadmin:
+    build: services/phpmyadmin/
+    container_name: phpmyadmin
+    env_file: .env
+    restart: unless-stopped
+    ports:
+      - 8080:80
+    networks:
+      - network
+    depends_on:
+      - mariadb
+
 networks:
   network:
     driver: bridge

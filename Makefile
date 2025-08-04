@@ -1,24 +1,27 @@
-srcsPath = srcs/
+srcsPath = src/
+
+DOCKER = docker
+COMPOSE = $(DOCKER) compose
 
 all:    build up 
 
+ALL_CONTAINERS = wordpress mariadb nginx phpmyadmin
+
 clean:
-	docker container ls -aq | xargs --no-run-if-empty docker container rm -f
+	$(DOCKER) container stop $(ALL_CONTAINERS)
 
 fclean: clean
-	docker volume ls | xargs --no-run-if-empty docker volume rm -f
-	sudo rm -rf /home/rmorel/data/wp
-	sudo rm -rf /home/rmorel/data/mysql
+	$(DOCKER) container rm -f $(ALL_CONTAINERS)
 
 volumes:
-	sudo mkdir -p /home/rmorel/data/wp
-	sudo mkdir -p /home/rmorel/data/mysql
+	mkdir -p /home/rmorel/data/wp
+	mkdir -p /home/rmorel/data/mysql
 
 build:  volumes
-	cd $(srcsPath) && docker compose build
+	cd $(srcsPath) && $(COMPOSE) build 
 
 up:
-	cd $(srcsPath) && docker compose up -d 
+	cd $(srcsPath) && $(COMPOSE) up -d 
 
 re: fclean volumes build up
 
