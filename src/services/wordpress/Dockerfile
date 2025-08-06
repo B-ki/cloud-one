@@ -14,6 +14,7 @@ RUN curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli
 RUN wp core download --allow-root
 
 COPY tools/setup.sh /usr/local/bin/
+COPY conf/wp-config.php /tmp/wp-config-template.php
 
 RUN chmod +x /usr/local/bin/setup.sh
 

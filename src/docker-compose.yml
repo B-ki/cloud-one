@@ -1,18 +1,53 @@
-version: '3.9'
-name: inception
-
 services:
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy
+    container_name: nginx-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - network
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - nginx-certs:/etc/nginx/certs
+      - nginx-vhost:/etc/nginx/vhost.d
+      - nginx-html:/usr/share/nginx/html
+
+  acme-companion:
+    image: nginxproxy/acme-companion
+    container_name: nginx-ssl
+    restart: unless-stopped
+    depends_on:
+      - nginx-proxy
+    networks:
+      - network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - nginx-certs:/etc/nginx/certs
+      - nginx-vhost:/etc/nginx/vhost.d
+      - nginx-html:/usr/share/nginx/html
+      - acme-data:/etc/acme.sh
+    environment:
+      - DEFAULT_EMAIL=davinciclaude81@gmail.com
+      - NGINX_PROXY_CONTAINER=nginx-proxy
+      - ACME_CA_URI=https://acme-staging-v02.api.letsencrypt.org/directory
+
   nginx:
     build: services/nginx/
-    container_name: nginx
+    container_name: nginx-internal
     env_file: .env
     restart: unless-stopped
-    ports: 
-      - 443:443
+    expose:
+      - "80"
     networks:
       - network
     volumes:
       - wordpress-data:/var/www/wordpress
+    environment:
+      - VIRTUAL_HOST=equancy-cloud-one.duckdns.org
+      - LETSENCRYPT_HOST=equancy-cloud-one.duckdns.org
+      - LETSENCRYPT_EMAIL=davinciclaude81@gmail.com
 
   mariadb:
     build: services/mariadb
@@ -50,6 +85,7 @@ services:
     depends_on:
       - mariadb
 
+
 networks:
   network:
     driver: bridge
@@ -59,12 +95,24 @@ volumes:
     driver: local
     driver_opts:
       type: none
-      device: /home/rmorel/data/mysql
+      device: ${DATA_PATH:-./data}/mysql
       o: bind
 
   wordpress-data:
     driver: local
     driver_opts:
       type: none
-      device: /home/rmorel/data/wp
+      device: ${DATA_PATH:-./data}/wp
       o: bind
+
+  nginx-certs:
+    driver: local
+
+  nginx-vhost:
+    driver: local
+
+  nginx-html:
+    driver: local
+
+  acme-data:
+    driver: local

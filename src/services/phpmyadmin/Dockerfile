@@ -19,6 +19,7 @@ RUN wget https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.ta
     && tar xzf phpMyAdmin-latest-all-languages.tar.gz \
     && mv phpMyAdmin-*-all-languages/* . \
     && rm -rf phpMyAdmin-*-all-languages* \
+    && rm -f /var/www/html/index.html \
     && chown -R www-data:www-data /var/www/html
 
 COPY tools/setup.sh /usr/local/bin/
