@@ -1,9 +1,9 @@
 <?php
-// Handle nginx-proxy HTTPS detection - MUST BE EARLY!
+// Handle Traefik HTTPS detection - MUST BE EARLY!
 if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
     $_SERVER['HTTPS'] = 'on';
 }
-// Handle nginx-proxy host detection
+// Handle Traefik host detection
 if (isset($_SERVER['HTTP_X_FORWARDED_HOST'])) {
     $_SERVER['HTTP_HOST'] = $_SERVER['HTTP_X_FORWARDED_HOST'];
 }

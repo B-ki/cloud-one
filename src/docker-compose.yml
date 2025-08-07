@@ -1,7 +1,7 @@
 services:
-  nginx-proxy:
-    image: nginxproxy/nginx-proxy
-    container_name: nginx-proxy
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
     restart: unless-stopped
     ports:
       - "80:80"
@@ -9,29 +9,21 @@ services:
     networks:
       - network
     volumes:
-      - /var/run/docker.sock:/tmp/docker.sock:ro
-      - nginx-certs:/etc/nginx/certs
-      - nginx-vhost:/etc/nginx/vhost.d
-      - nginx-html:/usr/share/nginx/html
-
-  acme-companion:
-    image: nginxproxy/acme-companion
-    container_name: nginx-ssl
-    restart: unless-stopped
-    depends_on:
-      - nginx-proxy
-    networks:
-      - network
-    volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - nginx-certs:/etc/nginx/certs
-      - nginx-vhost:/etc/nginx/vhost.d
-      - nginx-html:/usr/share/nginx/html
-      - acme-data:/etc/acme.sh
-    environment:
-      - DEFAULT_EMAIL=davinciclaude81@gmail.com
-      - NGINX_PROXY_CONTAINER=nginx-proxy
-      - ACME_CA_URI=https://acme-staging-v02.api.letsencrypt.org/directory
+      - traefik-data:/data
+    command:
+      - --api.dashboard=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.email=davinciclaude81@gmail.com
+      - --certificatesresolvers.letsencrypt.acme.storage=/data/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.letsencrypt.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
 
   nginx:
     build: services/nginx/
@@ -44,10 +36,12 @@ services:
       - network
     volumes:
       - wordpress-data:/var/www/wordpress
-    environment:
-      - VIRTUAL_HOST=equancy-cloud-one.duckdns.org
-      - LETSENCRYPT_HOST=equancy-cloud-one.duckdns.org
-      - LETSENCRYPT_EMAIL=davinciclaude81@gmail.com
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.nginx.rule=Host(`equancy-cloud-one.duckdns.org`)
+      - traefik.http.routers.nginx.entrypoints=websecure
+      - traefik.http.routers.nginx.tls.certresolver=letsencrypt
+      - traefik.http.services.nginx.loadbalancer.server.port=80
 
   mariadb:
     build: services/mariadb
@@ -105,14 +99,5 @@ volumes:
       device: ${DATA_PATH:-./data}/wp
       o: bind
 
-  nginx-certs:
-    driver: local
-
-  nginx-vhost:
-    driver: local
-
-  nginx-html:
-    driver: local
-
-  acme-data:
+  traefik-data:
     driver: local
