@@ -57,9 +57,13 @@ resource "null_resource" "scaleway_setup" {
     destination = "/root/.env"
   }
 
+  provisioner "remote-exec" {
+    inline = ["mkdir -p /root/services/"]
+  }
+
   provisioner "file" {
     source      = "services/"
-    destination = "/root/services/"
+    destination = "/root/services"
   }
 
   provisioner "file" {

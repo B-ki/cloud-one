@@ -15,9 +15,7 @@ RUN wp core download --allow-root
 
 COPY tools/setup.sh /usr/local/bin/
 COPY conf/wp-config.php /tmp/wp-config-template.php
-
-# Copy backups directory (will copy empty dir if no backups exist)
-COPY ../../backups /tmp/backups
+COPY backups/ /tmp/backups/
 
 RUN chmod +x /usr/local/bin/setup.sh
 

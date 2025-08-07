@@ -27,6 +27,10 @@ if ! wp core is-installed --allow-root; then
                         tar -xzf /tmp/backups/wordpress_uploads_latest.tar.gz -C /var/www/wordpress/
                 fi
                 
+                # Install required theme (theme referenced in backup database)
+                echo "Installing Jobstride Resume theme..."
+                wp theme install jobstride-resume --activate --allow-root
+                
                 # Update URLs to current domain
                 echo "Updating domain URLs..."
                 wp search-replace "equancy-cloud-one.duckdns.org" "$DOMAIN_NAME" --allow-root
