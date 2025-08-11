@@ -237,6 +237,7 @@ This creates:
 
 ## Roadmap
 
+- [ ] Add the functionnality to download Resume when clicking on it
 - [ ] Add automated backup scheduling with cron
 - [ ] Implement monitoring with Prometheus/Grafana
 - [ ] Add Redis caching layer
