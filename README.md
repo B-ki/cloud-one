@@ -7,45 +7,82 @@ A containerized WordPress hosting solution with automated SSL certificates and T
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                          Internet                               │
+│                   (HTTPS Traffic)                               │
 └─────────────────────────┬───────────────────────────────────────┘
                           │
                     ┌─────▼─────┐
                     │  Traefik  │ :80, :443
-                    │ (Gateway) │ SSL Termination
-                    └─────┬─────┘ Let's Encrypt
+                    │ (Gateway) │ SSL Termination + Auto Redirect
+                    │           │ Let's Encrypt ACME
+                    └─────┬─────┘ Docker Service Discovery
                           │
+                          │ HTTP (Internal)
               ┌───────────▼───────────┐
-              │       Nginx          │ :80
-              │  (Web Server)        │ Static Files
+              │   Nginx-Internal       │ :80 (Exposed)
+              │   (Web Server)         │ Static Files + FastCGI Proxy
               └───────────┬───────────┘
-                          │ FastCGI
+                          │ FastCGI :9000
               ┌───────────▼───────────┐
-              │     WordPress        │ :9000
-              │   (PHP-FPM)          │ PHP Processing
+              │     WordPress        │ :9000 (Exposed)
+              │    (PHP-FPM)         │ PHP Processing
               └───────────┬───────────┘
-                          │ MySQL
+                          │ MySQL Protocol
               ┌───────────▼───────────┐
-              │      MariaDB         │ :3306
-              │    (Database)        │ Data Storage
+              │      MariaDB           │ :3306 (Exposed)
+              │    (Database)          │ Data Storage
               └───────────────────────┘
 
-         ┌─────────────────────────────┐
-         │      phpMyAdmin       │ :8080
-         │   (DB Management)     │ Local Access
-         └───────────────────────┘
+    ┌─────────────────────────────────────┐
+    │           phpMyAdmin                │ :8080 (Published)
+    │        (DB Management)              │ Direct Host Access
+    │      Connected to MariaDB           │ Development/Admin
+    └─────────────────────────────────────┘
+
+    Docker Network: "network" (Bridge)
+    Volumes: mariadb-data, wordpress-data, traefik-data
 ```
 
 ## Description
 
 Cloud-One is a production-ready WordPress hosting stack that combines:
 
-- **Traefik**: Reverse proxy with automatic SSL certificate management
-- **Nginx**: High-performance web server for static content delivery
-- **WordPress**: PHP-FPM based WordPress installation
-- **MariaDB**: Reliable MySQL-compatible database
-- **phpMyAdmin**: Web-based database administration interface
+- **Traefik v3**: Modern reverse proxy with automatic SSL certificate management via Let's Encrypt, HTTP to HTTPS redirection, and Docker service discovery
+- **Nginx**: High-performance internal web server optimized for static content delivery and FastCGI proxy to WordPress
+- **WordPress**: PHP-FPM based WordPress installation with optimized container configuration
+- **MariaDB**: Reliable MySQL-compatible database with persistent storage
+- **phpMyAdmin**: Web-based database administration interface accessible on port 8080
 
-The stack is optimized for cloud deployment with persistent data storage, automated backups, and infrastructure as code using Ansible.
+The stack implements a 4-layer architecture designed for production deployment with:
+- **SSL termination** at Traefik level with automatic certificate renewal
+- **Static file optimization** via Nginx caching and compression
+- **Container isolation** with dedicated Docker network for inter-service communication
+- **Data persistence** using bind-mounted volumes for MySQL and WordPress data
+- **Infrastructure as Code** deployment using Ansible for cloud environments
+
+### Technical Architecture Details
+
+**Network Configuration:**
+- All services communicate through a dedicated Docker bridge network named `network`
+- Only essential ports are published to the host: 80/443 (Traefik) and 8080 (phpMyAdmin)
+- Inter-container communication uses service names for DNS resolution
+
+**Service Exposure:**
+- **Traefik**: Publishes ports 80/443 for public web access
+- **Nginx-Internal**: Exposes port 80 only to the internal Docker network
+- **WordPress**: Exposes port 9000 for FastCGI communication with Nginx
+- **MariaDB**: Exposes port 3306 only to internal network (secured)
+- **phpMyAdmin**: Publishes port 8080 for direct host access (development)
+
+**SSL/TLS Configuration:**
+- Automatic HTTPS redirection from port 80 to 443
+- Let's Encrypt certificates with HTTP-01 challenge
+- Staging environment configured by default (change to production in docker-compose.yml)
+- Certificate storage in named volume `traefik-data`
+
+**Data Persistence:**
+- WordPress files: `${DATA_PATH}/wp` bind mount
+- MySQL data: `${DATA_PATH}/mysql` bind mount  
+- Traefik configuration: `traefik-data` named volume
 
 ## Getting Started
 
@@ -58,6 +95,8 @@ The stack is optimized for cloud deployment with persistent data storage, automa
 
 ### Local Development
 
+For development and testing purposes, you can work with the project locally before cloud deployment:
+
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
@@ -67,52 +106,93 @@ The stack is optimized for cloud deployment with persistent data storage, automa
 2. **Create environment configuration**
    ```bash
    cp .env.sample .env
-   # Edit .env with your configuration
+   # Edit .env with your configuration (use localhost for local testing)
    ```
 
-3. **Start the stack**
+3. **Test deployment locally** (optional)
    ```bash
-   make all
+   # Test the stack locally with Docker Compose
+   docker compose up -d
    ```
 
-4. **Access services**
-   - WordPress: https://your-domain.com
-   - phpMyAdmin: http://localhost:8080
+4. **Prepare for cloud deployment**
+   ```bash
+   # Configure for production deployment
+   make ansible-setup
+   # Edit deployment/inventory.yml with your server details
+   ```
+
+**Note:** The primary focus is cloud deployment. Local testing is optional and mainly for development purposes.
 
 ### Cloud Deployment
+
+Cloud-One is designed for automated deployment on cloud infrastructure using Ansible. The deployment process installs Docker, configures the environment, and deploys the entire WordPress stack remotely.
 
 1. **Setup Ansible environment**
    ```bash
    make ansible-setup
    ```
+   This installs required Ansible collections and prepares the deployment environment.
 
 2. **Configure deployment variables**
    - Update the server IP in `deployment/inventory.yml`
    - Ensure your `.env` file contains production values
+   - Verify SSH key access to target server (`~/.ssh/id_ed25519`)
 
 3. **Deploy infrastructure**
    ```bash
    make ansible-deploy
    ```
+   This command will:
+   - Install Docker and Docker Compose on the target server
+   - Copy all necessary files (docker-compose.yml, services/, .env)
+   - Build and start all containers
+   - Configure SSL certificates with Let's Encrypt
+   - Test HTTP/HTTPS connectivity
 
 4. **Verify deployment**
    ```bash
-   make ansible-status
-   make ansible-logs
+   make ansible-status   # Check container status
+   make ansible-logs     # View service logs
    ```
+
+5. **Access your WordPress site**
+   - Website: `https://your-domain.com`
+   - phpMyAdmin: `http://your-server-ip:8080`
+
+**Deployment Requirements:**
+- Target server: Ubuntu 20.04 LTS (or compatible)
+- SSH daemon running with key-based authentication
+- Python installed on target server
+- Domain name pointing to server IP (for SSL certificates)
 
 ### Available Commands
 
+**Ansible Deployment Commands:**
 ```bash
-make all              # Build and start containers
-make stop             # Stop all containers
-make clean            # Remove containers
-make fclean           # Destroy all Docker resources (DESTRUCTIVE)
-make build            # Build Docker images
-make up               # Start containers
-make re               # Full rebuild
-make help             # Show all available commands
+make all              # Deploy to remote server with Ansible (same as ansible-deploy)
+make ansible-deploy   # 🚀 Deploy Cloud-One stack to Scaleway server
+make ansible-setup    # 🔧 Setup Ansible environment and dependencies
+make ansible-ping     # 📡 Test SSH connection to remote server
+make ansible-status   # 📊 Check containers status on remote server
+make ansible-logs     # 📋 Fetch logs from remote server
+make ansible-stop     # ⏹️  Stop containers on remote server
+make ansible-restart  # 🔄 Restart containers on remote server
 ```
+
+**Remote Management Commands:**
+```bash
+make stop             # Stop containers on remote server
+make clean            # Remove containers on remote server
+make fclean           # 🚨 DESTROY all Docker resources on remote server (DESTRUCTIVE)
+make build            # Build Docker images on remote server
+make up               # Start containers on remote server
+make re               # Full remote rebuild (fclean + ansible-deploy)
+make volumes          # Create required data directories on remote server
+make help             # Show all available commands with descriptions
+```
+
+**Note:** All commands operate on the remote Scaleway server via Ansible. No local Docker execution.
 
 ## Configuration
 
