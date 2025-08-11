@@ -1,4 +1,0 @@
-# This file ensures the backups directory is tracked by git
-# Place your WordPress backup files here:
-# - wordpress_db_latest.sql
-# - wordpress_uploads_latest.tar.gz
