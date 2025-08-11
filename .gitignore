@@ -1,12 +1,9 @@
-# Terraform files
-*.tfstate
-*.tfstate.*
-*.tfvars
-*.tfvars.json
-.terraform/
-.terraform.lock.hcl
-terraform.tfplan
-terraform.tfplan.*
+# Ansible files
+deployment/.vault_pass
+deployment/host_vars/
+deployment/group_vars/
+*.retry
+.ansible/
 
 # Environment files
 .env

@@ -1,0 +1,173 @@
+---
+- name: Deploy Cloud-One WordPress Stack to Scaleway
+  hosts: scaleway-server
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+
+    - name: Check if Docker is installed
+      command: docker --version
+      register: docker_installed
+      failed_when: false
+      changed_when: false
+
+    - name: Add Docker GPG key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.gpg
+        mode: '0644'
+      when: docker_installed.rc != 0
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch={{ ansible_architecture }} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker
+      when: docker_installed.rc != 0
+
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+      when: docker_installed.rc != 0
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Verify Docker installation
+      command: docker --version
+      register: docker_version
+
+    - name: Verify Docker Compose installation
+      command: docker compose version
+      register: docker_compose_version
+
+    - name: Display Docker versions
+      debug:
+        msg: 
+          - "{{ docker_version.stdout }}"
+          - "{{ docker_compose_version.stdout }}"
+
+    - name: Create project directory
+      file:
+        path: /root/cloud-one
+        state: directory
+        mode: '0755'
+
+    - name: Create data directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ data_path }}/wp"
+        - "{{ data_path }}/mysql"
+
+    - name: Copy docker-compose.yml
+      copy:
+        src: ../docker-compose.yml
+        dest: /root/cloud-one/docker-compose.yml
+        mode: '0644'
+
+    - name: Copy environment file
+      copy:
+        src: ../.env
+        dest: /root/cloud-one/.env
+        mode: '0600'
+
+    - name: Copy services directory
+      copy:
+        src: ../services/
+        dest: /root/cloud-one/services/
+        mode: '0755'
+
+    - name: Copy Makefile
+      copy:
+        src: ../Makefile
+        dest: /root/cloud-one/Makefile
+        mode: '0644'
+
+    - name: Stop existing containers if any
+      shell: cd /root/cloud-one && docker compose down
+      failed_when: false
+
+    - name: Start Docker Compose stack
+      shell: cd /root/cloud-one && docker compose up -d
+      register: compose_result
+
+    - name: Display compose output
+      debug:
+        var: compose_result.stdout_lines
+
+    - name: Wait for containers to be ready
+      pause:
+        seconds: 30
+
+    - name: Check container status
+      shell: cd /root/cloud-one && docker compose ps
+      register: container_status
+
+    - name: Display container status
+      debug:
+        var: container_status.stdout_lines
+
+    - name: Test HTTP access
+      uri:
+        url: http://equancy-cloud-one.duckdns.org/
+        method: GET
+        timeout: 10
+      register: http_test
+      failed_when: false
+
+    - name: Display HTTP test result
+      debug:
+        msg: "HTTP test {{ 'passed' if http_test.status == 200 else 'failed' }}"
+
+    - name: Wait for SSL certificates
+      pause:
+        seconds: 60
+        prompt: "Waiting for Let's Encrypt SSL certificates to be generated..."
+
+    - name: Test HTTPS access
+      uri:
+        url: https://equancy-cloud-one.duckdns.org/
+        method: GET
+        timeout: 10
+        validate_certs: yes
+      register: https_test
+      failed_when: false
+
+    - name: Display HTTPS test result
+      debug:
+        msg: "HTTPS test {{ 'passed' if https_test.status == 200 else 'may need more time' }}"
+
+    - name: Display deployment summary
+      debug:
+        msg:
+          - "Cloud-One WordPress stack deployment completed!"
+          - "Website: https://equancy-cloud-one.duckdns.org/"
+          - "PhpMyAdmin: http://{{ ansible_host }}:8080"
+          - "Traefik dashboard: http://{{ ansible_host }}:8080/dashboard/"

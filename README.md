@@ -45,7 +45,7 @@ Cloud-One is a production-ready WordPress hosting stack that combines:
 - **MariaDB**: Reliable MySQL-compatible database
 - **phpMyAdmin**: Web-based database administration interface
 
-The stack is optimized for cloud deployment with persistent data storage, automated backups, and infrastructure as code using Terraform.
+The stack is optimized for cloud deployment with persistent data storage, automated backups, and infrastructure as code using Ansible.
 
 ## Getting Started
 
@@ -53,7 +53,7 @@ The stack is optimized for cloud deployment with persistent data storage, automa
 
 - Docker and Docker Compose
 - Make
-- Terraform (for cloud deployment)
+- Ansible (for cloud deployment)
 - SSH access to target server (for cloud deployment)
 
 ### Local Development
@@ -81,19 +81,24 @@ The stack is optimized for cloud deployment with persistent data storage, automa
 
 ### Cloud Deployment
 
-1. **Configure Terraform variables**
-   - Update the SSH host and key path in `main.tf`
-   - Ensure your `.env` file contains production values
-
-2. **Deploy infrastructure**
+1. **Setup Ansible environment**
    ```bash
-   terraform init
-   terraform apply
+   make ansible-setup
    ```
 
-3. **Verify deployment**
+2. **Configure deployment variables**
+   - Update the server IP in `deployment/inventory.yml`
+   - Ensure your `.env` file contains production values
+
+3. **Deploy infrastructure**
    ```bash
-   make terraform-replace  # For redeployment if needed
+   make ansible-deploy
+   ```
+
+4. **Verify deployment**
+   ```bash
+   make ansible-status
+   make ansible-logs
    ```
 
 ### Available Commands
